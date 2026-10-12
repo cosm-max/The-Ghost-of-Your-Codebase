@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Ghost of Your Codebase</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#1a1626;--panel:#251e36;--ink:#ebe6f4;--dim:#9b92b3;--lantern:#f2a93b;--mist:#7fd6c2;--rule:#3a3150}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif}
+main{max-width:860px;margin:0 auto;padding:32px 20px 64px}
+h1{font:600 clamp(2rem,6vw,3.2rem)/1.1 Fraunces,Georgia,serif;margin:0 0 8px}
+p.sub{color:var(--dim);margin:0 0 24px;max-width:60ch}
+textarea{width:100%;height:240px;background:var(--panel);color:var(--ink);border:1px solid var(--rule);border-radius:6px;padding:12px;font:14px/1.5 ui-monospace,Menlo,monospace;resize:vertical}
+button{margin-top:12px;background:var(--lantern);color:#2a1a00;border:0;border-radius:6px;padding:10px 18px;font:600 1rem system-ui;cursor:pointer}
+button:disabled{opacity:.5;cursor:wait}
+:focus-visible{outline:2px solid var(--mist);outline-offset:2px}
+#out{margin-top:32px}
+.score{font:600 2rem Fraunces,Georgia,serif;margin:0}
+.verdict{color:var(--mist);margin:0 0 20px}
+.code{background:var(--panel);border:1px solid var(--rule);border-radius:6px;overflow-x:auto;font:14px/1.6 ui-monospace,Menlo,monospace}
+.ln{display:grid;grid-template-columns:3.2rem 1fr;min-width:max-content}
+.ln span.n{color:var(--dim);text-align:right;padding-right:12px;user-select:none}
+.ln pre{margin:0;white-space:pre}
+.ln.h{background:rgba(242,169,59,.12);box-shadow:inset 3px 0 var(--lantern)}
+.note{padding:6px 12px 10px 3.2rem;color:var(--lantern);font-family:Fraunces,Georgia,serif;font-size:15px;white-space:normal;max-width:70ch}
+.err{color:#ff8f8f}
+@media (prefers-reduced-motion:no-preference){.note{animation:rise .4s ease-out}@keyframes rise{from{opacity:0}to{opacity:1}}}
+</style></head><body><main>
+<h1>The Ghost of Your Codebase</h1>
+<p class="sub">Paste Python code. A ghost developer who died debugging will tell you what is haunting it.</p>
+<textarea id="code" spellcheck="false" aria-label="Python code to review"></textarea>
+<button id="go">Summon the ghost</button>
+<div id="out" aria-live="polite"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+$('code').value = `def process(items, a, b, c, d, e, cache=[]):
+    result = 0
+    for i in items:
+        if i:
+            for j in i:
+                while j:
+                    if j > 1:
+                        result += j
+    try:
+        risky()
+    except:
+        pass
+    return result`;
+$('go').onclick = async () => {
+  $('go').disabled = true;
+  try {
+    const r = await fetch('/api/review', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code: $('code').value})});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Something went wrong.');
+    show($('code').value, d);
+  } catch (e) {
+    $('out').replaceChildren(Object.assign(document.createElement('p'), {className: 'err', textContent: e.message}));
+  } finally { $('go').disabled = false; }
+};
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function show(code, d) {
+  const out = $('out'); out.replaceChildren();
+  out.append(el('p', 'score', `Haunting level ${d.score} of 100`), el('p', 'verdict', d.verdict));
+  const byLine = {};
+  d.findings.forEach(f => (byLine[f.line] ||= []).push(f));
+  const box = el('div', 'code');
+  code.split('\n').forEach((text, i) => {
+    const n = i + 1, hits = byLine[n];
+    const row = el('div', 'ln' + (hits ? ' h' : ''));
+    row.append(el('span', 'n', n), el('pre', '', text || ' '));
+    box.append(row);
+    (hits || []).forEach(f => box.append(el('div', 'note', '\u{1F47B} ' + f.message)));
+  });
+  out.append(box);
+}
+</script></body></html>
